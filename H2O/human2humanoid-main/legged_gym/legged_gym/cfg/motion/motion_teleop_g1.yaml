@@ -1,0 +1,85 @@
+teleop : True
+visualize : False
+recycle_motion : True
+terrain_level_down_distance : 0.5
+num_markers : 19
+
+
+# motion_file : 'resources/motions/g1/ACCAD_g1_stand1.pkl'
+motion_file   : '{LEGGED_GYM_ROOT_DIR}/resources/motions/g1/ACCAD_g1_Male2MartialArtsPunches_c3d_E1Jableft_poses.pkl'
+skeleton_file : '{LEGGED_GYM_ROOT_DIR}/resources/robots/g1/xml/g1.xml'
+marker_file   : '{LEGGED_GYM_ROOT_DIR}/resources/objects/Marker/traj_marker.urdf'
+num_dof_pos_reference : 19
+num_dof_vel_reference : 19
+
+extend_hand: True
+extend_head: False
+
+future_tracks: False
+num_traj_samples: 1             # 用在这里面 noise_vec[2*self.num_dof + 9 : 2*self.num_dof + 9 + (len(self.cfg.motion.teleop_selected_keypoints_names) + 3) *3 * 3 * self.cfg.motion.num_traj_samples ]
+traj_sample_timestep_inv: 50
+# zsy added
+init_z_offset: -0.5 # 给env_origins_init_3Doffset一个向下的偏置。。。
+
+curriculum : False
+obs_noise_by_curriculum: False
+push_robot_by_curriculum: False
+kpkd_by_curriculum: False
+rfi_by_curriculum: False
+
+
+teleop_level_up_episode_length : 100
+teleop_level_down_episode_length : 30
+
+
+# eleop_obs_version  : 'v-teleop'
+# teleop_obs_version : 'v-teleop-clean'
+# teleop_obs_version : 'v-teleop-superclean'
+# teleop_obs_version : 'v-teleop-clean-nolastaction'
+# teleop_obs_version : 'v-teleop-extend'
+# teleop_obs_version : 'v-teleop-extend-nolinvel'
+# teleop_obs_version   : 'v-teleop-extend-max'
+teleop_obs_version : 'v-teleop-extend-max-nolinvel'
+# teleop_obs_version : 'v-min2'
+teleop_selected_keypoints_names : [
+                                    'left_ankle_pitch_link', 
+                                    'right_ankle_pitch_link', 
+                                    'left_shoulder_pitch_link',
+                                    'right_shoulder_pitch_link', 
+                                    'left_elbow_link', 
+                                    'right_elbow_link']
+
+
+resample_motions_for_envs : True
+resample_motions_for_envs_interval_s : 1000
+
+
+visualize_config:
+    customize_color : True
+    # marker的关节颜色
+    marker_joint_colors : 
+    - [0., 1., 0.] # pelvis
+    - [0.157, 0.231, 0.361] # left_hip_pitch_joint
+    - [0.157, 0.231, 0.361] # left_hip_roll_joint
+    - [0.157, 0.231, 0.361] # left_hip_yaw_joint
+    - [0.157, 0.231, 0.361] # left_knee_joint
+    - [0.157, 0.231, 0.361] # left_ankle_pitch_joint
+    - [0.157, 0.231, 0.361] # right_hip_pitch_joint
+    - [0.157, 0.231, 0.361] # right_hip_roll_joint
+    - [0.157, 0.231, 0.361] # right_hip_yaw_joint
+    - [0.157, 0.231, 0.361] # right_knee_joint
+    - [0.157, 0.231, 0.361] # right_ankle_pitch_joint
+    - [0., 0., 1.]  # waist_yaw_joint
+    - [1, 0.651, 0] # left_shoulder_pitch_joint
+    - [1, 0.651, 0] # left_shoulder_roll_joint
+    - [1, 0.651, 0] # left_shoulder_yaw_joint
+    - [1, 0.651, 0] # left_elbow_joint
+    - [1, 0.651, 0] # right_shoulder_pitch_joint
+    - [1, 0.651, 0] # right_shoulder_roll_joint
+    - [1, 0.651, 0] # right_shoulder_yaw_joint
+    - [1, 0.651, 0] # right_elbow_joint
+    - [1, 0., 0] # right_elbow_joint_extend 这三个其实是拓展出来的
+    - [1, 0., 0] # left_elbow_joint_extend
+    - [1, 0., 0] # head_link
+
+realtime_vr_keypoints : False

@@ -1,0 +1,30 @@
+<mujocoinclude>
+
+    <compiler angle="radian" meshdir="../meshes/" />
+    <size njmax="500" nconmax="100" />
+    <asset>
+        <mesh name="base_link" file="base_link.STL" />
+        <mesh name="left_leg_roll_link" file="left_leg_roll_link.STL" />
+        <mesh name="left_leg_yaw_link" file="left_leg_yaw_link.STL" />
+        <mesh name="left_leg_pitch_link" file="left_leg_pitch_link.STL" />
+        <mesh name="left_knee_link" file="left_knee_link.STL" />
+        <mesh name="left_ankle_pitch_link_big" file="left_ankle_pitch_link_big.STL" />
+        <mesh name="left_ankle_roll_link_new" file="left_ankle_roll_link_new.STL" />
+        <mesh name="right_leg_roll_link" file="right_leg_roll_link.STL" />
+        <mesh name="right_leg_yaw_link" file="right_leg_yaw_link.STL" />
+        <mesh name="right_leg_pitch_link" file="right_leg_pitch_link.STL" />
+        <mesh name="right_knee_link" file="right_knee_link.STL" />
+        <mesh name="right_ankle_roll_link_new" file="right_ankle_roll_link_new.STL" />
+        <mesh name="waist_roll_link" file="waist_roll_link.STL" />
+        <mesh name="left_foot_ee_link" file="left_foot_ee_link.STL" />
+        <mesh name="left_shoulder_pitch_link" file="left_shoulder_pitch_link.STL" />
+        <mesh name="left_shoulder_roll_link" file="left_shoulder_roll_link.STL" />
+        <mesh name="left_arm_yaw_link" file="left_arm_yaw_link.STL" />
+        <mesh name="left_arm_pitch_link" file="left_arm_pitch_link.STL" />
+        <mesh name="right_shoulder_pitch_link" file="right_shoulder_pitch_link.STL" />
+        <mesh name="right_shoulder_roll_link" file="right_shoulder_roll_link.STL" />
+        <mesh name="right_arm_yaw_link" file="right_arm_yaw_link.STL" />
+        <mesh name="right_arm_pitch_link" file="right_arm_pitch_link.STL" />
+    </asset>
+
+</mujocoinclude>

@@ -1,0 +1,34 @@
+
+control_type : 'P'
+  # PD Drive parameters:
+stiffness : 
+  hip_yaw: 100      #zsy 参考ASAP
+  hip_roll: 100
+  hip_pitch: 100
+  knee: 200
+  ankle_pitch: 20
+  waist_yaw: 400
+  shoulder_pitch: 90
+  shoulder_roll: 60
+  shoulder_yaw: 20
+  elbow: 60
+
+damping : 
+  hip_yaw: 2.5
+  hip_roll: 2.5
+  hip_pitch: 2.5
+  knee: 5.0
+  ankle_pitch: 0.2
+  waist_yaw: 5.0
+  shoulder_pitch: 2.0
+  shoulder_roll: 1.0
+  shoulder_yaw: 0.4
+  elbow: 1.0
+
+action_scale : 0.25
+# decimation: Number of control action updates @ sim DT per policy DT
+decimation : 4 # 4
+
+# action_filt : False
+action_filt : False
+action_cutfreq : 4.0

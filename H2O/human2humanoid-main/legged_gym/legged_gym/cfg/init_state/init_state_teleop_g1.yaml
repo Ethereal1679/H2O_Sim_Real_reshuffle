@@ -1,0 +1,28 @@
+pos : [0.0, 0.0, 0.7] # xyz [m] 初始化机器人的高度，根据G1的高度已经修改
+rot : [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
+lin_vel : [0.0, 0.0, 0.0]  # x,y,z [m/s]
+ang_vel : [0.0, 0.0, 0.0]  # x,y,z [rad/s]
+max_linvel : 0.5
+max_angvel : 0.5
+# 此处根据ASAP已经修改：  
+default_joint_angles :  # : target angles [rad] when action : 0.0
+    left_hip_pitch_joint: -0.1
+    left_hip_roll_joint: 0.
+    left_hip_yaw_joint: 0.
+    left_knee_joint: 0.3
+    left_ankle_pitch_joint: -0.2
+    right_hip_pitch_joint: -0.1
+    right_hip_roll_joint: 0.
+    right_hip_yaw_joint: 0.
+    right_knee_joint: 0.3
+    right_ankle_pitch_joint: -0.2
+    waist_yaw_joint : 0.
+    left_shoulder_pitch_joint: 0.
+    left_shoulder_roll_joint: 0.
+    left_shoulder_yaw_joint: 0.
+    left_elbow_joint: 0.
+    right_shoulder_pitch_joint: 0.
+    right_shoulder_roll_joint: 0.
+    right_shoulder_yaw_joint: 0.
+    right_elbow_joint: 0.
+

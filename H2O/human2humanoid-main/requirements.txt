@@ -1,0 +1,43 @@
+mujoco
+pytorch_lightning
+numpy-stl
+vtk
+patchelf
+termcolor
+torchgeometry
+scikit-image
+numpy==1.23.0
+scipy
+ipdb
+joblib>=1.2.0
+opencv-python==4.6.0.66
+tqdm 
+pyyaml
+wandb
+scikit-image
+gym
+lxml
+scikit-learn
+chumpy
+patchelf
+wandb
+pyvirtualdisplay
+chumpy
+patchelf
+lxml
+ipdb
+chardet
+cchardet
+imageio-ffmpeg
+easydict
+open3d
+gdown
+rich
+pynput
+-e rsl_rl
+-e legged_gym
+-e phc
+onnxruntime==1.13.1
+onnx==1.13.1
+hydra-core
+pytorch3d
