@@ -195,11 +195,11 @@ class LoadMotions:
 
 
     # =================== 计算初始的观测值 ===================
-    def compute_self_and_task_obs(self, motion_step_counter, quat, data):
+    def compute_self_and_task_obs(self, motion_step_counter, quat):
         """ Computes observations
         """
         # 偏置
-        if 1:
+        if 1: 
             self.motion_start_times = 0
         else: 
             self.motion_start_times = self._motion_lib.sample_time(self.motion_ids)   
@@ -228,7 +228,7 @@ class LoadMotions:
         time_steps = 1
         ### obs 
         task_obs_buff = self.compute_imitation_observations_teleop_max_local(ref_root_pos, ref_rb_pos_subset, ref_body_vel_subset, root_rot, time_steps)
-        task_obs = task_obs_buff.clone()
+        # task_obs = task_obs_buff.clone()
         # print("task_obs",task_obs) 
         # 绘制ref_pos的位置 
         ## ============= 用于task pos的可视化 ================

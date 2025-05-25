@@ -23,24 +23,31 @@ from unitree_sdk2py.utils.thread import RecurrentThread
 from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient
 from unitree_sdk2py.utils.joystick import Joystick
 
-# from utils.logger import SimpleLogger
+
 # from utils.visualize import *
 # from utils.utils import MovingAverageFilter, LowPassFilter, FixFreq
 sys.path.append("..//")
 from modules.actor_critic import example_policy
+from hx_utils.logger import SimpleLogger
 # --------------- for motion load----------------------------------
 import os
 
-from sim2real_class import Sim2simCfg
-from sim2real_class import ElasticBand
-from sim2real_class import LoadMotions
+
+from sim2real_class_new import Sim2simCfg
+from sim2real_class_new import ElasticBand
+from sim2real_class_new import LoadMotions
 from helpers import class_to_dict
 
 H2O_ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 MUJOCO_TREE_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+print(f"MUJOCO_TREE_ROOT_DIR: {MUJOCO_TREE_ROOT_DIR}")
+print(f"H2O_ROOT_DIR: {H2O_ROOT_DIR}")
 
 G1_NUM_MOTOR = 29
 H2O_19DOF_JOINT_INDEX = [0,1,2,3,4,  6,7,8,9,10,  12,  15,16,17,18,  22,23,24,25]
+H2O_UPPER_JOINT_INDEX = [15,16,17,18,  22,23,24,25]
+H2O_DOWN_JOINT_INDEX = [0,1,2,3,4,  6,7,8,9,10,  12]
+
 class G1JointIndex:
     LeftHipPitch = 0
     LeftHipRoll = 1
@@ -103,8 +110,10 @@ class G1Real:
         # 待修改
         self.Kp = [200, 150, 150, 200, 20, 20,       200, 150, 150, 200, 20, 20,     200, 200, 200,      20, 20, 20, 20, 20, 5, 5,       20, 20, 20, 20, 20, 5, 5]
         self.Kd = [5, 5, 5, 5, 2, 2,     5, 5, 5, 5, 2, 2,   5, 5, 5,        0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.2,      0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.2,]
+        ### 仿真的KP
+        # self.Kp = [30, 30, 30, 20, 2, 2,       30, 30, 30, 20, 2, 2,     200, 200, 200,      20, 20, 20, 20, 20, 5, 5,       20, 20, 20, 20, 20, 5, 5]
+        # self.Kd = [2.5, 2.5, 2.5, 5, 0.2, 0.2,     2.5, 2.5, 2.5, 5, 0.2, 0.2,   5, 5, 5,        0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.2,      0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.2,]
 
-        
         # #### 29 dof 
         self.default_dof_pos = np.array([-0.1,  0.0,    0.0,    0.3,   -0.2,  0.0,   \
                                         -0.1,  0.0,    0.0,    0.3,   -0.2,  0.0,    \
@@ -115,7 +124,6 @@ class G1Real:
 
 
         self.target_dof_pos = np.zeros(G1_NUM_MOTOR)
-
         self.init_communication()
 
         # wireless remote
@@ -246,6 +254,11 @@ class G1Real:
 
         self.projected_gravity = self.rot_mat_aligned_world2base @ np.array([0, 0, -1.0])
 
+        # print("[dof_pos_19] ", np.round(self.dof_pos[H2O_19DOF_JOINT_INDEX], 4))
+        ## NOTE: --------------
+        r = R.from_quat(self.base_quat) 
+        self.gvec = r.apply(np.array([0., 0., -1.]), inverse=True).astype(np.float32)
+
 
 
 
@@ -280,9 +293,10 @@ class Controller:
         负责控制策略的部署，包括建立网络导入权重、初始化机器人数据通信链等，大部分函数可以根据自己的需求修改
         """
 
+
         #### ----------  config  -----------------
         self.dt = 0.02  ### 50Hz
-        self.counter = 0
+        # self.counter = 0
 
         ### params
         self.num_obs = 1656
@@ -291,6 +305,7 @@ class Controller:
         self.num_history = 25
         self.num_actions = 19
 
+        self.actions = np.zeros(self.num_actions)
         self.last_actions = np.zeros(self.num_actions)
         self.obs = np.zeros(self.num_obs) 
         self.obs_history = np.zeros(self.num_single_obs * self.num_history)
@@ -300,17 +315,38 @@ class Controller:
         self.lin_vel_est = np.zeros(3)
         self.base_height_est = np.zeros(1)
 
-        self.torque_29dof = np.zeros_like(G1_NUM_MOTOR)
+        self.torque_29dof = np.zeros(G1_NUM_MOTOR)
         ### normailize
         self.motion_step_counter = 0
-        self.clip_actions = 100.0
+        self.clip_actions = 8.0
         self.clip_observations = 100.0
         self.action_scale = 0.25
         self.tau_limit = 100.0
 
+        """
+        ——————————
+        视频动作摄入：upper
+        1.HumanEva_g1_S1_Gestures_1_poses
+        2.ACCAD_g1_Male2MartialArtsPunches_c3d_E1Jableft_poses
+        3.ACCAD_g1_Male2MartialArtsPunches_c3d_E7uppercutleft_poses
+        4.ACCAD_g1_Male2MartialArtsPunches_c3d_E13body_crossleft_poses\
+        5.ACCAD_g1_Male2MartialArtsPunches_c3d_E9
+        6.BMLhandball_g1_S02_Novice_Trial_upper_left_140_poses
+        7.g1_walk_and_punch
+        8.EKUT_g1_125_SLP304_poses
+        ——————————
+        全身动作试试
+        1.stand_still_to_test
+        2.ACCAD_g1_stand1 为什么抖动的这么厉害？？？？
+        3. ACCAD_g1_Male2MartialArtsPunches_c3d_E7uppercutleft_poses
+        """
+
+
         #### motions
-        motion_path = '../motions/{}.pkl'.format('ACCAD_g1_stand1') 
-        self.load_motions = LoadMotions(motion_path)
+        # motion_path = '../motions/{}.pkl'.format('HumanEva_g1_S1_Gestures_1_poses') 
+        self.motion_path = f"{MUJOCO_TREE_ROOT_DIR}/motions/ACCAD_g1_stand1.pkl"
+        self.model_path = f"{MUJOCO_TREE_ROOT_DIR}/models/25_04_06_18-19-05_g1_add_ref_vel_and_ref_delta_posmodel_20000.pt"
+        self.load_motions = LoadMotions(self.motion_path)
         # load_motions.reset_root_states(data) # init robot pos and rot through motions' init pos and rot
         self.load_motions._resample_motion_times(0) 
 
@@ -318,10 +354,8 @@ class Controller:
         self.init_robot()
         self.load_policy()
 
-        # self.logger: SimpleLogger = SimpleLogger()
+        self.logger: SimpleLogger = SimpleLogger()
         self.last_time = time.time()
-
-
 
 
 
@@ -329,14 +363,16 @@ class Controller:
         self.robot = G1Real()
 
     def load_policy(self):
-        model_dict = torch.load(self.model_path, map_location='cpu')
-        self.policy = example_policy
-        self.policy.load_state_dict(model_dict['model_state_dict'])
-        self.policy.eval()
-        self.policy_inference = self.policy.act_inference
+        # model_dict = torch.load(self.model_path, map_location='cpu')
+        # self.policy = example_policy
+        # self.policy.load_state_dict(model_dict['model_state_dict'])
+        # self.policy.eval()
+        # self.policy_inference = self.policy.act_inference
+        self.policy_inference = torch.jit.load(self.model_path, map_location='cpu')  
+
+
 
     def log(self):
-
         self.logger.log('target_dof_pos',   self.robot.target_dof_pos)
         self.logger.log('dof_pos',          self.robot.dof_pos)  
         self.logger.log('dof_vel',          self.robot.dof_vel)  
@@ -382,14 +418,27 @@ class Controller:
                                         np.clip(self.commands[2]-0.02, a_min=self.cmd_sample[2], a_max=None),
                                         np.clip(self.commands[2]+0.02, a_min=None, a_max=self.cmd_sample[2]))
 
+    ### for debug only
+    def log_obs(self, obs, width=80,pad=2):
+        log_string = (
+            f"""{'-' * width}\n"""
+            f"""{'【q】:':>{pad}} {obs[0        :     19]}\n"""                  
+            f"""{'【dq】:':>{pad}} {obs[19       :     19*2]}\n"""              
+            f"""{'【omega】:':>{pad}} {obs[19*2     :     19*2+3]}\n"""           
+            f"""{'【gvec】:':>{pad}} {obs[19*2+3   :     19*2+6]}\n"""            
+            f"""{'【task_obs】:':>{pad}} {obs[19*2+6   :     19*2+24]}\n"""             
+            f"""{'【action】:':>{pad}} {obs[19*2+24   :     19*3+24]}\n"""     
+        )      
+        print(log_string)
 
     def get_obs(self, motion_step_counter):
 
-        q = self.robot.dof_pos[H2O_19DOF_JOINT_INDEX]
-        dq = self.robot.dof_vel[H2O_19DOF_JOINT_INDEX]
-        quat = self.base_quat
+        q = self.robot.dof_pos[H2O_19DOF_JOINT_INDEX]  #???
+        dq = self.robot.dof_vel[H2O_19DOF_JOINT_INDEX] #????
+        quat = self.robot.base_quat
         omega = self.robot.base_ang_vel_body
         gvec = self.robot.projected_gravity
+        gvec_test = self.robot.gvec
         task_obs  = self.load_motions.compute_self_and_task_obs(motion_step_counter, quat)
 
         self.obs = np.hstack(
@@ -399,64 +448,84 @@ class Controller:
                 omega,              #3
                 gvec,               #3
                 task_obs,           #18 
-                self.last_actions,  #19
+                self.actions,  #19
             )
         )
-        obs_tensor = torch.tensor(self.obs, dtype=torch.float32, device='cpu', requires_grad=False).reshape((1, self.num_single_obs)).squeeze(0)
-        self.obs_history = np.roll(self.obs_history, self.num_single_obs)
-        self.obs_history[:self.num_single_obs] = np.concatenate((q, dq, omega, gvec, self.last_actions)) # NOTE: without task_obs
-        obs_history_tensor = torch.tensor(self.obs_history, dtype=torch.float32, device='cpu', requires_grad=False).reshape((1, self.num_single_obs*self.num_history)).squeeze(0)
-        obs_policy_tensor = torch.cat((obs_tensor, obs_history_tensor), dim=-1) # dim = 18 + 63 + 25*63
+        
+        # import ipdb;ipdb.set_trace()
+        # obs_tensor = torch.tensor(self.obs, dtype=torch.float32, device='cpu', requires_grad=False)
+        obs_tensor = torch.from_numpy(self.obs).unsqueeze(0) 
+        current_obs = np.concatenate((q, dq, omega, gvec, self.actions))
+        self.obs_history[1 * self.num_single_obs :] = self.obs_history[:-1 * self.num_single_obs ]
+        self.obs_history[: 1 * self.num_single_obs] =  current_obs      # NOTE: without task_obs
+        obs_history_tensor = torch.from_numpy(self.obs_history).unsqueeze(0)
+        obs_policy_tensor = torch.cat((obs_tensor, obs_history_tensor), dim=-1).to(torch.float) # dim = 1x(18 + 63 + 25*63)
         return obs_policy_tensor
+
+
+    # NOTE： 全身
+    def apply_action(self, action):
+        # rl_default_dof_pos = np.concatenate((self.robot.default_dof_pos[:13], self.robot.default_dof_pos[15:])) ### 27 dof
+        action_scaled = action * self.action_scale + self.robot.default_dof_pos_19dof  ### 19dof
+        self.torque_29dof[H2O_19DOF_JOINT_INDEX] = action_scaled
+        # print("[torque_29dof] ", np.round(self.torque_29dof, 3))
+        tar_dof_pos = self.torque_29dof  
+        tar_dof_pos = np.clip(tar_dof_pos, -self.tau_limit, self.tau_limit)
+        return tar_dof_pos
+
+
+    # # NOTE: 只用上肢 ～～～
+    # def apply_action(self, action):
+    #     # rl_default_dof_pos = np.concatenate((self.robot.default_dof_pos[:13], self.robot.default_dof_pos[15:])) ### 27 dof
+    #     action_rebuff = np.concatenate((np.zeros(11), action[-8:]))
+    #     action_scaled = action_rebuff * self.action_scale + self.robot.default_dof_pos_19dof  ### 19dof
+    #     self.torque_29dof[H2O_19DOF_JOINT_INDEX] = action_scaled
+    #     # print("[torque_29dof] ", np.round(self.torque_29dof, 3))
+    #     tar_dof_pos = self.torque_29dof  
+    #     tar_dof_pos = np.clip(tar_dof_pos, -self.tau_limit, self.tau_limit)
+    #     return tar_dof_pos
+
 
 
     def motion_reset(self):
         if self.motion_step_counter * 0.02 >= self.load_motions.motion_len :
             self.motion_step_counter = 0
             self.load_motions._resample_motion_times(self.motion_step_counter)
-
-
-    def apply_action(self, action):
-        # rl_default_dof_pos = np.concatenate((self.robot.default_dof_pos[:13], self.robot.default_dof_pos[15:])) ### 27 dof
-        action_scaled = action * self.action_scale + self.robot.default_dof_pos_19dof  ### 19dof
-        self.torque_29dof[H2O_19DOF_JOINT_INDEX] = action_scaled
-        # tar_dof_pos = np.concatenate((action_scaled[:13], np.array([0.0, 0.0]), action_scaled[13:])) ### 29 dof
-        tar_dof_pos = self.torque_29dof
-        tar_dof_pos = np.clip(tar_dof_pos, -self.tau_limit, self.tau_limit)
-        return tar_dof_pos
-
-
+            
     def motion_count_update(self):
         self.motion_step_counter += 1
 
-    def run(self, motion_loop):
+
+    def run(self, motion_loop=False):
         while True:
             # NOTE: for safety
             if self.robot.joystick.B.pressed:
                 self.robot.enable_motor = False
                 break
-            # self.cmd_sample = np.array([0.5,0.0,0.0])
             ### command命令更新
             self.update_commands()
             while (time.time()-self.last_time) < self.dt:
                 time.sleep(0.001)
-            self.last_time = time.time()
+            self.last_time = time.time() 
             self.robot.receive_state()
             obs_policy_tensor = self.get_obs(self.motion_step_counter)
             obs_policy_tensor = torch.clip(obs_policy_tensor, -self.clip_observations, self.clip_observations) ##clip
-            action_tensor = self.policy_inference(obs_policy_tensor)
-            action_tensor = torch.clip(action_tensor, -self.clip_actions, self.clip_actions)
-            action = action_tensor.detach().cpu().numpy()  ## dim = 19
-            # action = np.zeros(27)   
-            tar_dof_pos = self.apply_action(action) 
+            self.actions = self.policy_inference(obs_policy_tensor.detach()).detach().numpy().squeeze()
+            self.actions = np.clip(self.actions, -self.clip_actions, self.clip_actions)
+
+
+            # <><><> 查看action是否正常 <><><>
+            # print(f"action: {action}")
+            # action = np.zeros(19)   
+            tar_dof_pos = self.apply_action(self.actions) 
             self.robot.step(tar_dof_pos)
-            self.last_actions = action
+            # self.last_actions = action 
             # self.lin_vel_est = base_lin_vel_est.detach().cpu().numpy() 
             self.log()
+            # self.log_obs(self.obs)  
             self.motion_count_update()
             if motion_loop:
                 self.motion_reset()
-
 
 
 
@@ -470,6 +539,7 @@ if __name__ == "__main__":
     controller = Controller()
     ### 设置机器人的默认姿态
     controller.robot.set_default_posture(controller.robot.default_dof_pos)
+    print("[1] robot default posture set!")
     while True:
         ### 保持默认序列
         controller.robot.send_motor_cmd(target_q=controller.robot.default_dof_pos)
@@ -481,16 +551,18 @@ if __name__ == "__main__":
         if controller.robot.joystick.A.pressed:
             break
 
+    print("[2] robot default posture set!")
     controller.last_time = time.time()
-    ### 主要循环
-    motion_loop = False
+    motion_loop = True
     controller.run(motion_loop)
 
-    print("saving data...")
+    print("[3] saving data...")
     nowtime = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
     if not Path('./data/').exists():
         Path('./data/').mkdir()
     np.savez(f"./data/{nowtime}.npz", **controller.logger)
-    print("over!")
+    print("[4] over!")
 
     # visualize_helper(controller.logger)
+
+

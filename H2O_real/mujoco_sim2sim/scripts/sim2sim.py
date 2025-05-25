@@ -67,12 +67,12 @@ def pd_control(target_q, q, kp, target_dq, dq, kd):
 
 def get_obs(data):
     '''Extracts an observation from the mujoco data structure
-    '''
+    '''  
     # print(data.qpos)
     q = data.qpos.astype(np.float32)
     dq = data.qvel.astype(np.float32)
     if 0:quat = q[3:7] #一定是0  
-    else: quat = data.sensor('orientation').data[[1, 2, 3, 0]].astype(np.float32) # x y z w
+    else: quat = data.sensor('orientation').data[[1, 2, 3, 0]].astype(np.float32) # x y z w 
     if 0:omega = dq[3:6] 
     else:omega = data.sensor('angular-velocity').data.astype(np.float32)
     r = R.from_quat(quat)   
@@ -99,7 +99,7 @@ def log_obs(obs, width=80,pad=2):
     print(log_string)
 
 
-def run_mujoco(policy, cfg:Sim2simCfg):
+def run_mujoco(policy,motion_path,cfg:Sim2simCfg):
     """
     Run the Mujoco simulation using the provided policy and configuration.
 
@@ -117,7 +117,6 @@ def run_mujoco(policy, cfg:Sim2simCfg):
     mujoco.mj_step(model, data)
 
     #### ============= [2] LoadMotions =============
-    motion_path = f'{MUJOCO_TREE_ROOT_DIR}/motions/DanceDB_g1_20120807_CliodelaVara_Clio_Flamenco_C3D_poses.pkl' 
     load_motions = LoadMotions(motion_path)
     # load_motions.reset_root_states(data) # init robot pos and rot through motions' init pos and rot
     load_motions._resample_motion_times(0) 
@@ -140,16 +139,18 @@ def run_mujoco(policy, cfg:Sim2simCfg):
     elastic_band =  ElasticBand()
     elastic_band.enable = True
     band_attached_link = model.body("pelvis").id
-    #### logger
+    #### NOTE: logger
     logger = Logger(0.02)
-    action_buff = np.zeros_like(action,  dtype=np.float32)
+    stop_state_log = 2000
+    simulation_duration = 60 #s
+    LOG =True
+    # action_buff = np.zeros_like(action,  dtype=np.float32)
 
 
     # loop
     with mujoco.viewer.launch_passive(model, data) as viewer:  
         # Close the viewer automatically after simulation_duration wall-seconds.
         start = time.time()
-        simulation_duration = 120 #s
         #####  ------------------------------------------------- loop 200HZ ------------------------------------------------------------------
         while viewer.is_running() and time.time() - start < simulation_duration:
             step_start = time.time()   
@@ -195,8 +196,18 @@ def run_mujoco(policy, cfg:Sim2simCfg):
                 # hist_obs.append(obs[0, 0:63])   
                 # hist_obs.popleft()  
                 # print(gvec) 
+                ### ========= history ========
+                # NOTE: This bug has consumed me for 1.5 months!!!!!!!
+                current_obs = np.concatenate((q, dq, omega, gvec, action)) ## @@ right!!
+                # current_obs_a = obs[0:63] # @@ wrong!!
+                trajectories[1 * 63 :] = trajectories[: -1 * 63]
+                trajectories[0 * 63 : 1 * 63] = current_obs
+                trajectories_buff = trajectories.copy()
+                
+                # print(motion_step_counter)
                 ### ============================ action =================================
                 # print(policy(torch.from_numpy(obs)).shape)
+                # import ipdb;ipdb.set_trace()
                 action = policy(obs_tensor.detach()).detach().numpy().squeeze()
                 action = np.clip(action, -cfg.normalization.clip_actions, cfg.normalization.clip_actions)
                 # action_buff[9:] = action[:10].copy()
@@ -213,22 +224,15 @@ def run_mujoco(policy, cfg:Sim2simCfg):
                     log_obs_buff = obs[0:81]
                     log_obs(log_obs_buff)
 
-                # NOTE: This bug has consumed me for 1.5 months!!!!!!!
-                current_obs = np.concatenate((q, dq, omega, gvec, action)) ## @@ right!!
-                # current_obs_a = obs[0:63] # @@ wrong!!
-                trajectories[1 * 63 :] = trajectories[: -1 * 63]
-                trajectories[0 * 63 : 1 * 63] = current_obs
-                trajectories_buff = trajectories.copy()
-                motion_step_counter += 1
-                # print(motion_step_counter)
 
+                motion_step_counter += 1
                 if motion_step_counter * 0.02 >= load_motions.motion_len :
                     motion_step_counter = 0
                     # reset states  
                     # load_motions.reset_root_states(data)
                     load_motions._resample_motion_times(motion_step_counter)
                     # init_buffers  
-                    target_q            = cfg.robot_config.default_angles.copy()
+                    # target_q            = cfg.robot_config.default_angles.copy()
                     action              = np.zeros((cfg.env.num_actions),       dtype=np.float32)
                     target_dq           = np.zeros_like(target_q,               dtype=np.float32)
                     obs                 = np.zeros((cfg.env.num_observations),  dtype=np.float32)
@@ -242,6 +246,32 @@ def run_mujoco(policy, cfg:Sim2simCfg):
                 # if delta > 0:
                 #     time.sleep(delta)
                 # time.sleep(0.5)
+
+                # log params
+                
+                Error_actions = np.mean((action - target_actions)**2)
+                R_alive = (motion_step_counter * 0.02) / load_motions.motion_len * 100
+                print("Rate_alive: {}%".format(R_alive.item()))
+                # ### <><><> logs <><><>
+                if LOG: 
+                    if counter < stop_state_log: 
+                        logger.log_states(
+                            {
+                                # 'dof_pos_target': actions[robot_index, joint_index].item()  * env.cfg.control.action_scale + env.default_dof_pos[robot_index, joint_index].item(),
+                                # 'dof_pos_target': env.actions[robot_index, joint_index].item() * env.cfg.control.action_scale + env.default_dof_pos[robot_index, joint_index].item(),
+                                # 'dof_pos': env.dof_pos[robot_index, joint_index].item(),
+                                # 'dof_vel': env.dof_vel[robot_index, joint_index].item(),
+                                # 'dof_torque': env.torques[robot_index, joint_index].item(),
+                                # 'base_gravity_x': env.projected_gravity[robot_index, 0].item(), #zsy add
+                                # 'base_gravity_y': env.projected_gravity[robot_index, 1].item(), #zsy add
+                                # 'base_gravity_z': env.projected_gravity[robot_index, 2].item(), #zsy add
+                                # 'base_vel_yaw': env.base_ang_vel[robot_index, 2].item(),
+                                # 'contact_forces_z': env.contact_forces[robot_index, env.feet_indices, 2].cpu().numpy()
+                                'Error_actions': Error_actions,
+                            }
+                        )
+                    elif counter==stop_state_log:
+                        logger.plot_states()
         # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
             
             #### PD controler 200HZ
@@ -263,14 +293,28 @@ def run_mujoco(policy, cfg:Sim2simCfg):
             if time_until_next_step > 0:
                 time.sleep(time_until_next_step)
 
+
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+"""
+带验证测试数据
+ACCAD_g1_Male2MartialArtsPunches_c3d_E1Jableft_poses
+ACCAD_g1_Male2MartialArtsPunches_c3d_E7uppercutleft_poses
+ACCAD_g1_Male2MartialArtsPunches_c3d_E13body_crossleft_poses
+BMLhandball_g1_S02_Novice_Trial_upper_left_140_poses
+BMLmovi_g1_Subject_5_F_MoSh_Subject_5_F_2_poses
+DanceDB_g1_20120807_CliodelaVara_Clio_Flamenco_C3D_poses
+EKUT_g1_125_SLP304_poses
+HumanEva_g1_S1_Box_1_poses
+HumanEva_g1_S1_Gestures_1_poses
+"""
+
 
 if __name__ == '__main__':
-
+    motion_path = f'{MUJOCO_TREE_ROOT_DIR}/motions/HumanEva_g1_S1_Gestures_1_poses.pkl' 
     load_model = f'{MUJOCO_TREE_ROOT_DIR}/models/STUDENT/25_04_06_18-19-05_g1_add_ref_vel_and_ref_delta_posmodel_20000.pt'
     policy = torch.jit.load(load_model)  
     cfg = Sim2simCfg()
     cfg.sim_config.mujoco_model_path = f'{MUJOCO_TREE_ROOT_DIR}/unitree_robots/g1_19dof/xml/g1_scene.xml'
-    run_mujoco(policy, cfg)
+    run_mujoco(policy, motion_path, cfg)
 
 

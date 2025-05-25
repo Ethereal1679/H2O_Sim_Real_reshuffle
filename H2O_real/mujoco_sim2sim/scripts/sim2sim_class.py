@@ -45,8 +45,8 @@ class Sim2simCfg():
         # default_angles = np.array([-0.,  0.0,  0.0,  0., -0.,  
         #                     -0.,  0.0,  0.0,  0., -0., 
         #                     0.0,
-        #                     0.0, 0.0, 0.0, 0.3,
-        #                     0.0, 0.0, 0.0, 0.3,]) 
+        #                     0.0, 0.0, 0.0, 0.0,
+        #                     0.0, 0.0, 0.0, 0.0,]) 
     class env:
         num_actions = 19
         num_single_obs = 63
@@ -155,24 +155,14 @@ class LoadMotions:
     #     obs = []
     #     B = 1
     #     J = len(self._track_bodies_extend_id)
-    #     # B, J, _ = body_pos.shape  #B为环境数 ，J为track_link_ids的数目 + head  or hands   
-    #     # ================
-    #     heading_inv_rot = torch_utils.calc_heading_quat_inv(root_rot)   #0
-    #     # heading_inv_ref_rot = torch_utils.calc_heading_quat_inv(ref_root_rot)
-    #     heading_inv_rot_expand = heading_inv_rot.unsqueeze(-2).repeat((1, J, 1)).repeat_interleave(time_steps, 0) # 1 3 4 
-    #     # heading_inv_ref_rot_expand = heading_inv_ref_rot.unsqueeze(-2).repeat((1, J, 1)).repeat_interleave(time_steps, 0) # 1 3 4 
-    #     # ================
-    #     # T_quat = self.quaternion_transform(heading_inv_rot, heading_inv_ref_rot)    # 1 3 4
-    #     # T_quat = T_quat.unsqueeze(-2).repeat((1, J, 1)).repeat_interleave(time_steps, 0)
-    #     # ================ 
+
     #     local_ref_body_pos = ref_body_pos.view(B, time_steps, J, 3) - ref_root_pos.view(B, 1, 1, 3)  # preserves the body position
-    #     local_ref_body_pos_obs = torch_utils.my_quat_rotate(heading_inv_rot_expand.view(-1, 4), local_ref_body_pos.view(-1, 3))
-    #     local_ref_body_vel_obs = torch_utils.my_quat_rotate(heading_inv_rot_expand.view(-1, 4), ref_body_vel.view(-1, 3))
     #     # ================
     #     obs.append(local_ref_body_pos.view(B, time_steps, -1))  # 1 * timestep * J * 3
     #     obs.append(ref_body_vel.view(B, time_steps, -1))  # timestep  * J * 3
     #     obs = torch.cat(obs, dim=-1).view(B, -1)
     #     return obs 
+
 
     def compute_imitation_observations_teleop_max_local(self, ref_root_pos, ref_body_pos, ref_body_vel, root_rot, time_steps):
         obs = []
@@ -233,7 +223,7 @@ class LoadMotions:
         # print("task_obs",task_obs) 
         # 绘制ref_pos的位置 
         ## ============= 用于task pos的可视化 ================
-        # a = ref_root_pos
+        # a = ref_root_pos 
         # x,y,z = a[0,:]   
         x,y,z = 0,0,0.793
         # x,y,z = virtual_xyz_pos[0], virtual_xyz_pos[1], virtual_xyz_pos[2]
@@ -246,7 +236,8 @@ class LoadMotions:
         robot = Sim2simCfg()
         r_action = ref_joint_pos - robot.robot_config.default_angles
 
-        return task_obs_buff.squeeze() , r_action.squeeze() / 0.025
+        return task_obs_buff.squeeze() , r_action.squeeze().numpy() / 0.025
+
 
     def quaternion_transform(self, q1, q2):
 
